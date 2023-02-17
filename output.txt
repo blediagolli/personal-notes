@@ -1,0 +1,451 @@
+apiVersion: compliance.openshift.io/v1alpha1
+checkType: Platform
+description: |-
+  OpenShift has an installation-time flag that can enable FIPS mode for the cluster. The flag
+
+  fips: true
+
+  must be enabled at install time in the
+
+  install-config.yaml
+
+  file.
+id: xccdf_org.ssgproject.content_rule_fips_mode_enabled_on_all_nodes
+instructions: |-
+  Run the following command to retrieve if the FIPS flag is enabled:
+  $ oc get machineconfig -o json | jq '[.items[] | select(.metadata.name | test("^rendered-worker-[0-9a-z]+$|^rendered-master-[0-9a-z]+$"))] | map(.spec.fips == true)'
+  Make sure that the result is an array of 'true' values.
+kind: Rule
+metadata:
+  annotations:
+    compliance.openshift.io/image-digest: pb-ocp4b7j5g
+    compliance.openshift.io/rule: fips-mode-enabled-on-all-nodes
+    control.compliance.openshift.io/NERC-CIP: CIP-003-8 R4.2;CIP-007-3 R5.1;CIP-007-3
+      R7.1
+    control.compliance.openshift.io/NIST-800-53: AC-17(2);SC-13;IA-7
+    control.compliance.openshift.io/PCI-DSS: Req-3.4.1
+    policies.open-cluster-management.io/controls: CIP-003-8 R4.2,CIP-007-3 R5.1,CIP-007-3
+      R7.1,AC-17(2),SC-13,IA-7,Req-3.4.1
+    policies.open-cluster-management.io/standards: NERC-CIP,NIST-800-53,PCI-DSS
+  creationTimestamp: "2022-05-27T17:43:04Z"
+  generation: 2
+  labels:
+    compliance.openshift.io/profile-bundle: ocp4
+  name: ocp4-fips-mode-enabled-on-all-nodes
+  namespace: openshift-compliance
+  ownerReferences:
+  - apiVersion: compliance.openshift.io/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ProfileBundle
+    name: ocp4
+    uid: b99cc1a7-5b35-4e98-90f3-249580d26214
+  resourceVersion: "688377625"
+  uid: 6cbe88cf-4035-416e-9125-370b79f96f72
+rationale: Use of weak or untested encryption algorithms undermines the purposes of
+  utilizing encryption to protect data. The system must implement cryptographic modules
+  adhering to the higher standards approved by the federal government since this provides
+  assurance they have been tested and validated.
+severity: high
+title: Ensure that FIPS mode is enabled on all cluster nodes
+apiVersion: compliance.openshift.io/v1alpha1
+checkType: Node
+description: |-
+  To enable FIPS mode, run the following command:
+
+  fips-mode-setup --enable
+
+  To enable FIPS, the system requires that the fips module is added in dracut configuration. Check if /etc/dracut.conf.d/40-fips.conf contain add_dracutmodules+=" fips "
+id: xccdf_org.ssgproject.content_rule_enable_dracut_fips_module
+instructions: |-
+  To verify that the Dracut FIPS module is enabled, run the following command:
+  grep "add_dracutmodules" /etc/dracut.conf.d/40-fips.conf
+  The output should look like this:
+  add_dracutmodules+=" fips "
+kind: Rule
+metadata:
+  annotations:
+    compliance.openshift.io/image-digest: pb-rhcos4s62xx
+    compliance.openshift.io/rule: enable-dracut-fips-module
+    control.compliance.openshift.io/NERC-CIP: CIP-003-8 R4.2;CIP-007-3 R5.1
+    control.compliance.openshift.io/NIST-800-53: SC-12(2);SC-12(3);IA-7;SC-13;CM-6(a);SC-12
+    policies.open-cluster-management.io/controls: CIP-003-8 R4.2,CIP-007-3 R5.1,SC-12(2),SC-12(3),IA-7,SC-13,CM-6(a),SC-12
+    policies.open-cluster-management.io/standards: NERC-CIP,NIST-800-53
+  creationTimestamp: "2022-05-27T17:43:10Z"
+  generation: 1
+  labels:
+    compliance.openshift.io/profile-bundle: rhcos4
+  name: rhcos4-enable-dracut-fips-module
+  namespace: openshift-compliance
+  ownerReferences:
+  - apiVersion: compliance.openshift.io/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ProfileBundle
+    name: rhcos4
+    uid: 675d2c1d-07cb-4ea5-a834-b439e367a98d
+  resourceVersion: "688377997"
+  uid: 84d60b34-b259-445f-82df-56ab94c2d2fe
+rationale: Use of weak or untested encryption algorithms undermines the purposes of
+  utilizing encryption to protect data. The operating system must implement cryptographic
+  modules adhering to the higher standards approved by the federal government since
+  this provides assurance they have been tested and validated.
+severity: high
+title: Enable Dracut FIPS Module
+warning: Use of weak or untested encryption algorithms undermines the purposes of
+  utilizing encryption to protect data. The operating system must implement cryptographic
+  modules adhering to the higher standards approved by the federal government since
+  this provides assurance they have been tested and validated.
+apiVersion: compliance.openshift.io/v1alpha1
+checkType: Node
+description: |-
+  To enable FIPS mode, run the following command:
+
+  fips-mode-setup --enable
+
+  The fips-mode-setup command will configure the system in FIPS mode by automatically configuring the following:
+
+  * Setting the kernel FIPS mode flag ( /proc/sys/crypto/fips_enabled ) to 1
+  * Creating /etc/system-fips
+  * Setting the system crypto policy in /etc/crypto-policies/config to DEFAULT
+  * Loading the Dracut fips module
+id: xccdf_org.ssgproject.content_rule_enable_fips_mode
+instructions: |-
+  To verify that FIPS mode is enabled properly, run the following command:
+  fips-mode-setup --check
+  The output should contain the following:
+  FIPS mode is enabled.
+  To verify that the cryptographic policy has been configured correctly, run the
+  following command:
+  $ update-crypto-policies --show
+  The output should return .
+kind: Rule
+metadata:
+  annotations:
+    compliance.openshift.io/image-digest: pb-rhcos4s62xx
+    compliance.openshift.io/rule: enable-fips-mode
+    compliance.openshift.io/rule-variable: var-system-crypto-policy
+    control.compliance.openshift.io/NERC-CIP: CIP-003-8 R4.2;CIP-007-3 R5.1
+    control.compliance.openshift.io/NIST-800-53: CM-3(6);SC-12(2);SC-12(3);IA-7;SC-13;CM-6(a);SC-12
+    policies.open-cluster-management.io/controls: CIP-003-8 R4.2,CIP-007-3 R5.1,CM-3(6),SC-12(2),SC-12(3),IA-7,SC-13,CM-6(a),SC-12
+    policies.open-cluster-management.io/standards: NERC-CIP,NIST-800-53
+  creationTimestamp: "2022-05-27T17:43:10Z"
+  generation: 1
+  labels:
+    compliance.openshift.io/profile-bundle: rhcos4
+  name: rhcos4-enable-fips-mode
+  namespace: openshift-compliance
+  ownerReferences:
+  - apiVersion: compliance.openshift.io/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ProfileBundle
+    name: rhcos4
+    uid: 675d2c1d-07cb-4ea5-a834-b439e367a98d
+  resourceVersion: "688377992"
+  uid: 5ac9e80e-8fde-4705-8b98-a0c0e027f639
+rationale: Use of weak or untested encryption algorithms undermines the purposes of
+  utilizing encryption to protect data. The operating system must implement cryptographic
+  modules adhering to the higher standards approved by the federal government since
+  this provides assurance they have been tested and validated.
+severity: high
+title: Enable FIPS Mode
+warning: Use of weak or untested encryption algorithms undermines the purposes of
+  utilizing encryption to protect data. The operating system must implement cryptographic
+  modules adhering to the higher standards approved by the federal government since
+  this provides assurance they have been tested and validated.
+apiVersion: compliance.openshift.io/v1alpha1
+checkType: Node
+description: |-
+  On a system where FIPS mode is enabled, /etc/system-fips must exist. To enable FIPS mode, run the following command:
+
+  fips-mode-setup --enable
+id: xccdf_org.ssgproject.content_rule_etc_system_fips_exists
+instructions: |-
+  To verify /etc/system-fips exists, run the following command:
+  ls -l /etc/system-fips
+  The output should be similar to the following:
+  -rw-r--r--. 1 root root 36 Nov 26 11:31 /etc/system-fips
+kind: Rule
+metadata:
+  annotations:
+    compliance.openshift.io/image-digest: pb-rhcos4s62xx
+    compliance.openshift.io/rule: etc-system-fips-exists
+    control.compliance.openshift.io/NERC-CIP: CIP-003-8 R4.2;CIP-007-3 R5.1
+    control.compliance.openshift.io/NIST-800-53: SC-12(2);SC-12(3);IA-7;SC-13;CM-6(a);SC-12
+    policies.open-cluster-management.io/controls: CIP-003-8 R4.2,CIP-007-3 R5.1,SC-12(2),SC-12(3),IA-7,SC-13,CM-6(a),SC-12
+    policies.open-cluster-management.io/standards: NERC-CIP,NIST-800-53
+  creationTimestamp: "2022-05-27T17:43:10Z"
+  generation: 2
+  labels:
+    compliance.openshift.io/profile-bundle: rhcos4
+  name: rhcos4-etc-system-fips-exists
+  namespace: openshift-compliance
+  ownerReferences:
+  - apiVersion: compliance.openshift.io/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ProfileBundle
+    name: rhcos4
+    uid: 675d2c1d-07cb-4ea5-a834-b439e367a98d
+  resourceVersion: "688377984"
+  uid: 2e83c6c5-d4fa-447e-bfaf-93466c77e164
+rationale: Use of weak or untested encryption algorithms undermines the purposes of
+  utilizing encryption to protect data. The operating system must implement cryptographic
+  modules adhering to the higher standards approved by the federal government since
+  this provides assurance they have been tested and validated.
+severity: high
+title: Ensure '/etc/system-fips' exists
+warning: Use of weak or untested encryption algorithms undermines the purposes of
+  utilizing encryption to protect data. The operating system must implement cryptographic
+  modules adhering to the higher standards approved by the federal government since
+  this provides assurance they have been tested and validated.
+apiVersion: compliance.openshift.io/v1alpha1
+checkType: Node
+description: |-
+  To ensure FIPS mode is enabled, install package dracut-fips , and rebuild initramfs by running the following commands:
+
+  dracut -f
+
+  After the dracut command has been run, add the argument fips=1 to the default GRUB 2 command line for the Linux operating system in /etc/default/grub , in the manner below:
+
+  GRUB_CMDLINE_LINUX="crashkernel=auto rd.lvm.lv=VolGroup/LogVol06 rd.lvm.lv=VolGroup/lv_swap rhgb quiet rd.shell=0 fips=1"
+
+  Finally, rebuild the grub.cfg file by using the
+
+  grub2-mkconfig -o
+
+  command as follows:
+
+  * On BIOS-based machines, issue the following command as root :
+
+  ~]# grub2-mkconfig -o /boot/grub2/grub.cfg
+
+  * On UEFI-based machines, issue the following command as root :
+
+  ~]# grub2-mkconfig -o /boot/grub2/grub.cfg
+id: xccdf_org.ssgproject.content_rule_grub2_enable_fips_mode
+instructions: |-
+  To verify that FIPS is enabled properly in grub, run the following command:
+  $ grep fips /etc/default/grub
+  The output should contain fips=1
+kind: Rule
+metadata:
+  annotations:
+    compliance.openshift.io/image-digest: pb-rhcos4s62xx
+    compliance.openshift.io/rule: grub2-enable-fips-mode
+    control.compliance.openshift.io/NERC-CIP: CIP-003-8 R4.2;CIP-007-3 R5.1
+    control.compliance.openshift.io/NIST-800-53: SC-12(2);SC-12(3);IA-7;SC-13;CM-6(a);SC-12
+    policies.open-cluster-management.io/controls: CIP-003-8 R4.2,CIP-007-3 R5.1,SC-12(2),SC-12(3),IA-7,SC-13,CM-6(a),SC-12
+    policies.open-cluster-management.io/standards: NERC-CIP,NIST-800-53
+  creationTimestamp: "2022-05-27T17:43:10Z"
+  generation: 2
+  labels:
+    compliance.openshift.io/profile-bundle: rhcos4
+  name: rhcos4-grub2-enable-fips-mode
+  namespace: openshift-compliance
+  ownerReferences:
+  - apiVersion: compliance.openshift.io/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ProfileBundle
+    name: rhcos4
+    uid: 675d2c1d-07cb-4ea5-a834-b439e367a98d
+  resourceVersion: "688378001"
+  uid: e5980543-fc07-4ba0-836e-955e4bb7ddd1
+rationale: Use of weak or untested encryption algorithms undermines the purposes of
+  utilizing encryption to protect data. The operating system must implement cryptographic
+  modules adhering to the higher standards approved by the federal government since
+  this provides assurance they have been tested and validated.
+severity: high
+title: Enable FIPS Mode in GRUB2
+warning: Use of weak or untested encryption algorithms undermines the purposes of
+  utilizing encryption to protect data. The operating system must implement cryptographic
+  modules adhering to the higher standards approved by the federal government since
+  this provides assurance they have been tested and validated.
+apiVersion: compliance.openshift.io/v1alpha1
+checkType: Node
+description: To enable processing of sensitive information the operating system must
+  provide certified cryptographic modules compliant with FIPS 140-2 standard.
+id: xccdf_org.ssgproject.content_rule_installed_OS_is_FIPS_certified
+instructions: |-
+  To verify that the installed operating system is supported or certified, run
+  the following command:
+
+  The output should contain something similar to:
+  Red Hat Enterprise Linux CoreOS 4
+kind: Rule
+metadata:
+  annotations:
+    compliance.openshift.io/image-digest: pb-rhcos4s62xx
+    compliance.openshift.io/rule: installed-os-is-fips-certified
+    control.compliance.openshift.io/NERC-CIP: CIP-003-8 R4.2;CIP-007-3 R5.1
+    control.compliance.openshift.io/NIST-800-53: SC-12(2);SC-12(3);IA-7;SC-13;CM-6(a);SC-12
+    policies.open-cluster-management.io/controls: CIP-003-8 R4.2,CIP-007-3 R5.1,SC-12(2),SC-12(3),IA-7,SC-13,CM-6(a),SC-12
+    policies.open-cluster-management.io/standards: NERC-CIP,NIST-800-53
+  creationTimestamp: "2022-05-27T17:43:10Z"
+  generation: 1
+  labels:
+    compliance.openshift.io/profile-bundle: rhcos4
+  name: rhcos4-installed-os-is-fips-certified
+  namespace: openshift-compliance
+  ownerReferences:
+  - apiVersion: compliance.openshift.io/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ProfileBundle
+    name: rhcos4
+    uid: 675d2c1d-07cb-4ea5-a834-b439e367a98d
+  resourceVersion: "688378065"
+  uid: b0671f12-6cc1-4c0d-8f3f-359489471e0e
+rationale: The Federal Information Processing Standard (FIPS) Publication 140-2, (FIPS
+  PUB 140-2) is a computer security standard. The standard specifies security requirements
+  for cryptographic modules used to protect sensitive unclassified information. Refer
+  to the full FIPS 140-2 standard at http://csrc.nist.gov/publications/fips/fips140-2/fips1402.pdf
+  for further details on the requirements. FIPS 140-2 validation is required by U.S.
+  law when information systems use cryptography to protect sensitive government information.
+  In order to achieve FIPS 140-2 certification, cryptographic modules are subject
+  to extensive testing by independent laboratories, accredited by National Institute
+  of Standards and Technology (NIST).
+severity: high
+title: The Installed Operating System Is FIPS 140-2 Certified
+warning: The Federal Information Processing Standard (FIPS) Publication 140-2, (FIPS
+  PUB 140-2) is a computer security standard. The standard specifies security requirements
+  for cryptographic modules used to protect sensitive unclassified information. Refer
+  to the full FIPS 140-2 standard at http://csrc.nist.gov/publications/fips/fips140-2/fips1402.pdf
+  for further details on the requirements. FIPS 140-2 validation is required by U.S.
+  law when information systems use cryptography to protect sensitive government information.
+  In order to achieve FIPS 140-2 certification, cryptographic modules are subject
+  to extensive testing by independent laboratories, accredited by National Institute
+  of Standards and Technology (NIST).
+apiVersion: compliance.openshift.io/v1alpha1
+checkType: Node
+description: 'To enable FIPS on system that support the Advanced Encryption Standard
+  (AES) or New Instructions (AES-NI) engine, the system requires that the dracut-fips-aesni
+  package be installed. The dracut-fips-aesni package can be installed with the following
+  command:'
+id: xccdf_org.ssgproject.content_rule_package_dracut-fips-aesni_installed
+instructions: 'Run the following command to determine if the dracut-fips-aesni package
+  is installed: $ rpm -q dracut-fips-aesni'
+kind: Rule
+metadata:
+  annotations:
+    compliance.openshift.io/image-digest: pb-rhcos4s62xx
+    compliance.openshift.io/rule: package-dracut-fips-aesni-installed
+    control.compliance.openshift.io/NERC-CIP: CIP-003-8 R4.2;CIP-007-3 R5.1
+    control.compliance.openshift.io/NIST-800-53: SC-12(2);SC-12(3);IA-7;SC-13;CM-6(a);SC-12
+    policies.open-cluster-management.io/controls: CIP-003-8 R4.2,CIP-007-3 R5.1,SC-12(2),SC-12(3),IA-7,SC-13,CM-6(a),SC-12
+    policies.open-cluster-management.io/standards: NERC-CIP,NIST-800-53
+  creationTimestamp: "2022-05-27T17:43:10Z"
+  generation: 1
+  labels:
+    compliance.openshift.io/profile-bundle: rhcos4
+  name: rhcos4-package-dracut-fips-aesni-installed
+  namespace: openshift-compliance
+  ownerReferences:
+  - apiVersion: compliance.openshift.io/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ProfileBundle
+    name: rhcos4
+    uid: 675d2c1d-07cb-4ea5-a834-b439e367a98d
+  resourceVersion: "688377978"
+  uid: 3e685380-a535-4f1f-8ff2-8abf16612102
+rationale: Use of weak or untested encryption algorithms undermines the purposes of
+  utilizing encryption to protect data. The operating system must implement cryptographic
+  modules adhering to the higher standards approved by the federal government since
+  this provides assurance they have been tested and validated.
+severity: medium
+title: Install the dracut-fips-aesni Package
+warning: Use of weak or untested encryption algorithms undermines the purposes of
+  utilizing encryption to protect data. The operating system must implement cryptographic
+  modules adhering to the higher standards approved by the federal government since
+  this provides assurance they have been tested and validated.
+apiVersion: compliance.openshift.io/v1alpha1
+checkType: Node
+description: 'To enable FIPS, the system requires that the dracut-fips package be
+  installed. The dracut-fips package can be installed with the following command:'
+id: xccdf_org.ssgproject.content_rule_package_dracut-fips_installed
+instructions: 'Run the following command to determine if the dracut-fips package is
+  installed: $ rpm -q dracut-fips'
+kind: Rule
+metadata:
+  annotations:
+    compliance.openshift.io/image-digest: pb-rhcos4s62xx
+    compliance.openshift.io/rule: package-dracut-fips-installed
+    control.compliance.openshift.io/NERC-CIP: CIP-003-8 R4.2;CIP-007-3 R5.1
+    control.compliance.openshift.io/NIST-800-53: SC-12(2);SC-12(3);IA-7;SC-13;CM-6(a);SC-12
+    policies.open-cluster-management.io/controls: CIP-003-8 R4.2,CIP-007-3 R5.1,SC-12(2),SC-12(3),IA-7,SC-13,CM-6(a),SC-12
+    policies.open-cluster-management.io/standards: NERC-CIP,NIST-800-53
+  creationTimestamp: "2022-05-27T17:43:10Z"
+  generation: 1
+  labels:
+    compliance.openshift.io/profile-bundle: rhcos4
+  name: rhcos4-package-dracut-fips-installed
+  namespace: openshift-compliance
+  ownerReferences:
+  - apiVersion: compliance.openshift.io/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ProfileBundle
+    name: rhcos4
+    uid: 675d2c1d-07cb-4ea5-a834-b439e367a98d
+  resourceVersion: "688377993"
+  uid: b2bc8fd4-dc5f-4d1e-a7c7-23911694f473
+rationale: Use of weak or untested encryption algorithms undermines the purposes of
+  utilizing encryption to protect data. The operating system must implement cryptographic
+  modules adhering to the higher standards approved by the federal government since
+  this provides assurance they have been tested and validated.
+severity: medium
+title: Install the dracut-fips Package
+warning: Use of weak or untested encryption algorithms undermines the purposes of
+  utilizing encryption to protect data. The operating system must implement cryptographic
+  modules adhering to the higher standards approved by the federal government since
+  this provides assurance they have been tested and validated.
+apiVersion: compliance.openshift.io/v1alpha1
+description: |-
+  System running in FIPS mode is indicated by kernel parameter 'crypto.fips_enabled'. This parameter should be set to 1 in FIPS mode. To enable FIPS mode, run the following command:
+
+  fips-mode-setup --enable
+
+  To enable strict FIPS compliance, the fips=1 kernel option needs to be added to the kernel boot parameters during system installation so key generation is done with FIPS-approved algorithms and continuous monitoring tests in place.
+id: xccdf_org.ssgproject.content_rule_sysctl_crypto_fips_enabled
+instructions: |-
+  To verify that kernel parameter 'crypto.fips_enabled' is set properly, run the following command:
+  sysctl crypto.fips_enabled
+  The output should contain the following:
+  crypto.fips_enabled = 1
+kind: Rule
+metadata:
+  annotations:
+    compliance.openshift.io/image-digest: pb-rhcos4s62xx
+    compliance.openshift.io/rule: sysctl-crypto-fips-enabled
+    control.compliance.openshift.io/NERC-CIP: CIP-003-8 R4.2;CIP-007-3 R5.1
+    control.compliance.openshift.io/NIST-800-53: SC-12(2);SC-12(3);IA-7;SC-13;CM-6(a);SC-12
+    policies.open-cluster-management.io/controls: CIP-003-8 R4.2,CIP-007-3 R5.1,SC-12(2),SC-12(3),IA-7,SC-13,CM-6(a),SC-12
+    policies.open-cluster-management.io/standards: NERC-CIP,NIST-800-53
+  creationTimestamp: "2022-05-27T17:43:10Z"
+  generation: 3
+  labels:
+    compliance.openshift.io/profile-bundle: rhcos4
+  name: rhcos4-sysctl-crypto-fips-enabled
+  namespace: openshift-compliance
+  ownerReferences:
+  - apiVersion: compliance.openshift.io/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ProfileBundle
+    name: rhcos4
+    uid: 675d2c1d-07cb-4ea5-a834-b439e367a98d
+  resourceVersion: "688377999"
+  uid: 4c02fe0c-4c26-4050-b3cd-8216badbbda7
+rationale: Use of weak or untested encryption algorithms undermines the purposes of
+  utilizing encryption to protect data. The operating system must implement cryptographic
+  modules adhering to the higher standards approved by the federal government since
+  this provides assurance they have been tested and validated.
+severity: high
+title: Set kernel parameter 'crypto.fips_enabled' to 1
+warning: Use of weak or untested encryption algorithms undermines the purposes of
+  utilizing encryption to protect data. The operating system must implement cryptographic
+  modules adhering to the higher standards approved by the federal government since
+  this provides assurance they have been tested and validated.
