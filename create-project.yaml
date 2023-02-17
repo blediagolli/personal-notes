@@ -1,0 +1,298 @@
+### TODO: LOOK INTO MULTIPLE CLUSTER SUPPORT
+# Description: Used to create new namepspaces in the OCP cluster currently logged into.
+# Explanation of parameters:
+#   cluster_type: Type of cluster the newspaces will be created on (MUST be either 'dev' or 'prod')
+#   ns_name: Name of the new namespace to be created (Must be lowercase, no whitespaces)
+#   ns_displayname: Display name of the new namespace
+#   ns_description: Brief description for new namespace
+#   jenkins_sa: Name of the Jenkins service account (i.e. 'jenkins')
+#   jenkins: Grant Jenkins Service Account {{ jenkins_sa }} "edit" access to {{ ns_name }} namespace (true or false - default is false)
+#   jboss_grp_name: Name of the JBoss service account (i.e. 'jboss')
+#   jboss: Grant JBoss group {{ jboss_grp_name }} "edit" access to {{ ns_name }} namespace (true or false - default is false)
+#   adm_app_migr: Grant app migration admin group "edit" access to {{ ns_name }} namespace (true or false - default is false)
+#   adm_ci_cd: Grant CI/CD admin group "edit" access to {{ ns_name }} namespace (true or false - default is false)
+#   ad_adm_group: Name of the namespace-specific admin group to be mapped to the edit role in the new project. Ensure this is identical to the group name in AD!
+#   ad_usr_group: Name of the namespace-specific user group to be mapped to the view role in the new project. Ensure this is identical to the group name in AD!
+#   ocp_infra: Declare whether or not the new namespace is part of the OpenShift Infrastructure (true or false - default is false)
+##     NOTE: For both the ad_adm_group and/or the ad_usr_group parameter: If not defined, no mapping will occur for that specific role, and it will need to be done manually. If it is defined but the group doesn't exist in OCP (usually because the group doesn't exist in AD yet), the mapping will still occur, but the group won't exist until it's created in Active Directory.
+
+## Example: ansible-playbook -i inventories/mgmt/mtb/ecp-mtb-mgmt.yml ansible/tower/tower_createproject.yml -e ns_name=new-test-ns -e ad_adm_grp=xbag-dev-test-adm -e ad_usr_grp=xbag-dev-test-usr -e jenkins=true -e jboss=true -e adm_app_migr=true -e adm_ci_cd=true
+
+
+- name: Create new project, configure/create memberships, and add appropriate roles
+  hosts: localhost
+  gather_facts: false
+  #become: true
+  tasks:
+
+    - name: Check if project {{ ns_name }} already exists
+      shell: 'oc get project {{ ns_name }} --no-headers=true'
+      register: project_verify
+      changed_when: false
+      run_once: true
+      no_log: True
+      failed_when: false
+
+    - name: Create project {{ ns_name }} from default project template
+      shell: 'oc new-project "{{ ns_name }}" --display-name="{{ ns_displayname }}" --description="{{ ns_description }}"'
+      when: 
+        - ('not found' in project_verify.stderr)
+      run_once: true
+
+    - name: 'Apply labels to project {{ ns_name }}'
+      shell: 'oc label ns {{ ns_name }} "ocp-infra={{ ocp_infra | default(false) | bool | lower }}" --overwrite' 
+
+    - name: Check if {{ jenkins_sa }} service account has Edit role in {{ ns_name }}
+      shell: 'oc describe rolebinding.rbac -n {{ ns_name }} | grep {{ jenkins_sa }}'
+      register: jenkins_sa_rb_verify
+      changed_when: false
+      when:
+        - jenkins | default(false) | bool
+      run_once: true
+      no_log: true
+      failed_when: false
+
+    - name: Map Jenkins service account to Edit role for {{ ns_name }}
+      shell: "oc adm policy add-role-to-user edit system:serviceaccount:jenkins:{{ jenkins_sa }} -n {{ ns_name }} --rolebinding-name=edit-{{ jenkins_sa }}"
+      when:
+        - jenkins | default(false) | bool
+        - jenkins_sa_rb_verify.rc != 0
+      run_once: true
+
+    - name: Check if {{ jboss_grp_name }} group already exists
+      shell: 'oc get group {{ jboss_grp_name }} --no-headers=true'
+      register: jboss_grp_verify
+      changed_when: false
+      when:
+        - jboss | default(false) | bool
+      run_once: true
+      no_log: true
+      failed_when: false
+
+    - name: Create {{ jboss_grp_name }} group
+      shell: 'oc adm groups new {{ jboss_grp_name}}'
+      when:
+        - jboss | default(false) | bool
+        - ('not found' in jboss_grp_verify.stderr)
+      run_once: true
+      ignore_errors: true
+
+    - name: Check if {{ jboss_grp_name }} group has Edit role in {{ ns_name }}
+      shell: 'oc describe rolebinding.rbac -n {{ ns_name }} | grep {{ jboss_grp_name }}'
+      register: jboss_grp_rb_verify
+      changed_when: false
+      when:
+        - jboss | default(false) | bool
+      run_once: true
+      no_log: true
+      failed_when: false
+
+    - name: Map {{ jboss_grp_name }} group to Edit role for {{ ns_name }}
+      shell: "oc adm policy add-role-to-group edit {{ jboss_grp_name }} -n {{ ns_name }} --rolebinding-name=edit-{{ jboss_grp_name }}"
+      when:
+        - jboss | default(false) | bool
+        - jboss_grp_rb_verify.rc != 0
+      run_once: true
+
+    - name: Obtain admin app migration group name
+      shell: "oc get groups | grep adm-app-migr-cluster | awk '{print $1}'"
+      register: adm_app_migr_cluster_grp_name
+      no_log: true
+      when:
+        - adm_app_migr | default(false) | bool
+      failed_when: false
+
+#    - debug:
+#        var: adm_app_migr_cluster_grp_name.stdout
+
+    - name: Check if {{ adm_app_migr_cluster_grp_name.stdout }} group has Edit role in {{ ns_name }}
+      shell: 'oc describe rolebinding.rbac -n {{ ns_name }} | grep {{ adm_app_migr_cluster_grp_name.stdout }}'
+      register: adm_app_migr_grp_rb_verify
+      changed_when: false
+      when:
+        - adm_app_migr | default(false) | bool
+      run_once: true
+      failed_when: false
+
+    - name: Map {{ adm_app_migr_cluster_grp_name.stdout }} group to Edit role for {{ ns_name }}
+      shell: "oc adm policy add-role-to-group edit {{ adm_app_migr_cluster_grp_name.stdout }} -n {{ ns_name }} --rolebinding-name=edit-{{ adm_app_migr_cluster_grp_name.stdout }}"
+      when:
+        - adm_app_migr | default(false) | bool
+        - adm_app_migr_grp_rb_verify.rc != 0
+      run_once: true
+
+    - name: Obtain admin CI/CD group name
+      shell: "oc get groups | grep adm-ci-cd | awk '{print $1}'"
+      register: adm_ci_cd_cluster_grp_name
+      no_log: true
+      when:
+        - adm_ci_cd | default(false) | bool
+      failed_when: false
+
+#    - debug:
+#        var: adm_ci_cd_cluster_grp_name.stdout
+
+    - name: Check if {{ adm_ci_cd_cluster_grp_name.stdout }} group has Edit role in {{ ns_name }}
+      shell: 'oc describe rolebinding.rbac -n {{ ns_name }} | grep {{ adm_ci_cd_cluster_grp_name.stdout }}'
+      register: adm_ci_cd_grp_rb_verify
+      changed_when: false
+      when:
+        - adm_ci_cd | default(false) | bool
+      run_once: true
+      failed_when: false
+
+    - name: Map {{ adm_ci_cd_cluster_grp_name.stdout }} group to Edit role for {{ ns_name }}
+      shell: "oc adm policy add-role-to-group edit {{ adm_ci_cd_cluster_grp_name.stdout }} -n {{ ns_name }} --rolebinding-name=edit-{{ adm_ci_cd_cluster_grp_name.stdout }}"
+      when:
+        - adm_ci_cd | default(false) | bool
+        - adm_ci_cd_grp_rb_verify.rc != 0
+      run_once: true
+
+
+    - name: Check if {{ ad_adm_grp }} admin group already exists
+      shell: "oc get group {{ ad_adm_grp }} --no-headers=true"
+      register: admin_grp_verify
+      when: ad_adm_grp is defined
+      changed_when: false
+      run_once: true
+      no_log: true
+      failed_when: false
+
+    - name: Admin Group - Alert
+      debug:
+        msg: "The group {{ ad_adm_grp }} was not found in the OpenShift cluster. The group will still be mapped to the appropriate role in the new namespace, but please ensure that the group will be created in Active Directory and that it follows the predefined naming convention."
+      when: ad_adm_grp is defined and 'not found' in admin_grp_verify.stderr
+
+    - name: Map Active Directory admin group (if defined) to the project "edit" role
+      shell: "oc adm policy add-role-to-group edit {{ ad_adm_grp }} -n {{ ns_name }} --rolebinding-name=edit-{{ ad_adm_grp }}"
+      when: ad_adm_grp is defined
+      ignore_errors: true
+      run_once: true
+
+    - name: Check if {{ ad_usr_grp }} user group already exists
+      shell: "oc get group {{ ad_usr_grp }} --no-headers=true"
+      register: user_grp_verify
+      when: ad_usr_grp is defined
+      changed_when: false
+      run_once: true
+      no_log: true
+      failed_when: false
+
+    - name: User Group - Alert
+      debug:
+        msg: "The group {{ ad_usr_grp }} was not found in the OpenShift cluster. The group will still be mapped to the appropriate role in the new namespace, but please ensure that the group will be created in Active Directory and that it follows the predefined naming convention."
+      when: ad_usr_grp is defined and 'not found' in user_grp_verify.stderr
+
+    - name: Map Active Directory user group (if defined) to the project "edit" role
+      shell: "oc adm policy add-role-to-group view {{ ad_usr_grp }} -n {{ ns_name }} --rolebinding-name=view-{{ ad_usr_grp }}"
+      when: ad_usr_grp is defined
+      ignore_errors: true
+      run_once: true
+
+
+
+
+###### BEGIN - OLD GROUP CREATE AND MAPPING ######
+
+#    - name: Check if {{ ns_name }} admin group already exists
+#      shell: "oc get group {{ ns_name}}-admins --no-headers=true"
+#      register: admin_grp_verify
+#      changed_when: false
+#      run_once: true
+#      no_log: True
+#      failed_when: false
+
+#    - name: Create {{ ns_name }} admin group
+#      shell: "oc adm groups new {{ ns_name}}-admins"
+#      when: 
+#        - ('not found' in admin_grp_verify.stderr)
+#      run_once: true
+#      ignore_errors: true
+
+#    - name: Check if {{ ns_name }} user group already exists
+#      shell: "oc get group {{ ns_name }}-users --no-headers=true"
+#      register: view_grp_verify
+#      changed_when: false
+#      run_once: true
+#      no_log: True
+#      failed_when: false
+
+#    - name: Create {{ ns_name }} view group
+#      shell: "oc adm groups new {{ ns_name }}-users"
+#      when:
+#        - ('not found' in view_grp_verify.stderr)
+#      run_once: true
+#      ignore_errors: true
+
+#    - name: Map group {{ ns_name }}-admins to the project "edit" role
+#      shell: "oc adm policy add-role-to-group edit {{ ns_name }}-admins -n {{ ns_name }}"
+#      when: 
+#        - ('not found' in admin_grp_verify.stderr)
+#      ignore_errors: true
+#      run_once: true
+          
+#    - name: Map group {{ ns_name }}-users to the project "view" role
+#      shell: "oc adm policy add-role-to-group view {{ ns_name }}-users -n {{ ns_name }}"
+#      when: 
+#        - ('not found' in view_grp_verify.stderr)
+#      run_once: true
+
+###### END - OLD GROUP CREATE AND MAPPING ######
+
+#    - name: Export copy of ldap-group-sync configmap to update
+#      shell: "oc get cm ldap-group-sync -n ldap-group-sync --export -o yaml > /root/ldap-group-sync-configmap.yaml"
+#      become: true
+#      delegate_to: "{{ master1_ip_add }}"
+#      ignore_errors: true
+#      run_once: true
+
+#    - name: Edit ldap-group-sync configmap copy - update AD group mappings
+#      lineinfile:
+#        path: /root/ldap-group-sync-configmap.yaml
+#        insertafter: '^(.*)groupUIDNameMapping(.*)$'
+#        line: '      "CN={{ ad_ns_name }}-{{ item }},OU=Application Role Security Groups,OU=Groups,DC=ds,DC=irsnet,DC=gov": "{{ ns_name }}-{{ item }}"'
+#        state: present
+#        backup: yes
+#      with_items:
+#      - admins
+#      - users
+#      when:
+#        - " env in group_names"
+#      delegate_to: "{{ master1_ip_add }}"
+#      ignore_errors: true
+#      run_once: true
+
+#    - name: Edit ldap-group-sync configmap copy - update whitelist
+#      lineinfile:
+#        path: /root/ldap-group-sync-configmap.yaml
+#        regexp: '^(.*)whitelist.txt: ""'
+#        line: '\1whitelist.txt: >-'
+#        backrefs: yes
+#        backup: yes
+#      when:
+#        - " env in group_names"
+#      delegate_to: "{{ master1_ip_add }}"
+#      ignore_errors: true
+#      run_once: true
+#
+#    - name: Edit ldap-group-sync configmap copy - update whitelist items
+#      lineinfile:
+#        path: /root/ldap-group-sync-configmap.yaml
+#        insertbefore: '^kind: ConfigMap'
+#        line: '    CN={{ ad_ns_name }}-{{ item }},OU=Application Role Security Groups,OU=Groups,DC=ds,DC=irsnet,DC=gov'
+#        state: present
+#        backup: yes
+#      with_items:
+#      - admins
+#      - users
+#      when:
+#        - " env in group_names"
+#      delegate_to: "{{ master1_ip_add }}"
+#      ignore_errors: true
+#      run_once: true
+#
+#    - name: Apply changes to the running ldap-group-sync configmap
+#      shell: "oc apply -f /root/ldap-group-sync-configmap.yaml -n ldap-group-sync"
+#      delegate_to: "{{ master1_ip_add }}"
+#      ignore_errors: true
+#      run_once: true
